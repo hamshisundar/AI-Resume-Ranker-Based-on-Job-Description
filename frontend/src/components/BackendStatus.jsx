@@ -1,8 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { checkHealth } from '../api/client';
 import { CircleCheck, CircleX, Loader2 } from 'lucide-react';
-import { cn } from '../lib/utils';
-
 const BackendStatus = () => {
   const [status, setStatus] = useState('checking'); // checking, ok, error
 
@@ -11,7 +9,7 @@ const BackendStatus = () => {
       try {
         await checkHealth();
         setStatus('ok');
-      } catch (error) {
+      } catch {
         setStatus('error');
       }
     };

@@ -1,5 +1,8 @@
 flask
 flask-cors
+flask-sqlalchemy
+flask-limiter
+argon2-cffi
 numpy
 pandas
 joblib

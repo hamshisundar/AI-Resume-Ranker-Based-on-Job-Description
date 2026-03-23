@@ -1,52 +1,124 @@
-import os
-import re
 import io
 import json
+import os
+import re
+from datetime import timedelta
+
 import joblib
 import numpy as np
 import pandas as pd
-from flask import Flask, request, jsonify
+import pdfplumber
+from flask import Flask, jsonify, request, Response
+from flask_cors import CORS
 
-import pdfplumber  # pip install pdfplumber
-
+from auth_routes import auth_bp
+from extensions import db, limiter
+from security import csrf_required, login_required
 
 # -----------------------------
 # Config / paths
 # -----------------------------
 ARTIFACTS_DIR = os.environ.get("ARTIFACTS_DIR", "./artifacts_ranker")
 
-MODEL_PATH   = os.path.join(ARTIFACTS_DIR, "lgbm_ranker.pkl")
-FEATS_PATH   = os.path.join(ARTIFACTS_DIR, "feature_names.pkl")
+MODEL_PATH = os.path.join(ARTIFACTS_DIR, "lgbm_ranker.pkl")
+FEATS_PATH = os.path.join(ARTIFACTS_DIR, "feature_names.pkl")
 PAIRVEC_PATH = os.path.join(ARTIFACTS_DIR, "pair_tfidf_vectorizer.pkl")
-JDVEC_PATH   = os.path.join(ARTIFACTS_DIR, "jd_vectorizer.pkl")
-CONFIG_PATH  = os.path.join(ARTIFACTS_DIR, "config.json")
+JDVEC_PATH = os.path.join(ARTIFACTS_DIR, "jd_vectorizer.pkl")
+CONFIG_PATH = os.path.join(ARTIFACTS_DIR, "config.json")
+
+
+def _parse_bool(val, default=False):
+    if val is None:
+        return default
+    return str(val).lower() in ("1", "true", "yes")
 
 
 # -----------------------------
-# Flask app (MUST be defined before decorators)
+# Flask app
 # -----------------------------
-app = Flask(__name__)
+app = Flask(__name__, instance_relative_config=True)
+os.makedirs(app.instance_path, exist_ok=True)
 
-# Simple CORS (no flask-cors dependency)
-@app.after_request
-def add_cors_headers(response):
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
-    return response
+app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY") or "dev-secret-change-in-production"
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
+    "DATABASE_URL",
+    "sqlite:///" + os.path.join(app.instance_path, "app.db"),
+)
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_SECURE"] = _parse_bool(os.environ.get("SESSION_COOKIE_SECURE"))
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=24)
 
+db.init_app(app)
+limiter.init_app(app)
+
+_cors_raw = os.environ.get("CORS_ORIGINS", "").strip()
+if _cors_raw:
+    _cors_origins = [o.strip() for o in _cors_raw.split(",") if o.strip()]
+else:
+    _cors_origins = []
+    for _port in range(5173, 5205):
+        _cors_origins.extend(
+            [
+                f"http://127.0.0.1:{_port}",
+                f"http://localhost:{_port}",
+            ]
+        )
+
+CORS(
+    app,
+    supports_credentials=True,
+    origins=_cors_origins,
+    allow_headers=["Content-Type", "X-CSRF-Token", "Authorization"],
+    methods=["GET", "POST", "OPTIONS"],
+)
+
+app.register_blueprint(auth_bp)
+
+import models  # noqa: E402, F401
+
+with app.app_context():
+    db.create_all()
 
 # -----------------------------
 # Skills list (same as training)
 # -----------------------------
 SKILLS = {
-    "python","java","c#","c++","javascript","typescript","react","react native","flutter",
-    "node","express","sql","mysql","postgresql","mongodb","firebase",
-    "aws","azure","docker","kubernetes","linux","git",
-    "machine learning","deep learning","nlp","computer vision",
-    "pandas","numpy","tensorflow","pytorch","api","rest"
+    "python",
+    "java",
+    "c#",
+    "c++",
+    "javascript",
+    "typescript",
+    "react",
+    "react native",
+    "flutter",
+    "node",
+    "express",
+    "sql",
+    "mysql",
+    "postgresql",
+    "mongodb",
+    "firebase",
+    "aws",
+    "azure",
+    "docker",
+    "kubernetes",
+    "linux",
+    "git",
+    "machine learning",
+    "deep learning",
+    "nlp",
+    "computer vision",
+    "pandas",
+    "numpy",
+    "tensorflow",
+    "pytorch",
+    "api",
+    "rest",
 }
-GENDER_WORDS = ["he","she","his","her","hers","him","mr","mrs","miss","ms","sir","madam"]
+GENDER_WORDS = ["he", "she", "his", "her", "hers", "him", "mr", "mrs", "miss", "ms", "sir", "madam"]
 
 
 # -----------------------------
@@ -86,21 +158,28 @@ def clean_text(t: str) -> str:
     t = re.sub(r"\s+", " ", t).strip()
     return t
 
+
 def extract_skills(text: str):
     t = text.lower()
     return {s for s in SKILLS if s in t}
+
 
 def experience_years(text: str) -> int:
     m = re.findall(r"(\d+)\s*(?:\+?\s*)?(?:years|year|yrs|yr)\b", text.lower())
     return int(max([int(x) for x in m])) if m else 0
 
+
 def education_score(text: str) -> int:
     t = text.lower()
     score = 0
-    if "phd" in t or "doctorate" in t: score = max(score, 3)
-    if "master" in t or "msc" in t or "m.sc" in t or "mba" in t: score = max(score, 2)
-    if "bachelor" in t or "bsc" in t or "b.sc" in t or "degree" in t: score = max(score, 1)
+    if "phd" in t or "doctorate" in t:
+        score = max(score, 3)
+    if "master" in t or "msc" in t or "m.sc" in t or "mba" in t:
+        score = max(score, 2)
+    if "bachelor" in t or "bsc" in t or "b.sc" in t or "degree" in t:
+        score = max(score, 1)
     return score
+
 
 def get_jd_top_terms(jd_clean: str, topn: int = TOPN_JD_TERMS):
     v = jd_vectorizer.transform([jd_clean]).toarray().ravel()
@@ -109,12 +188,14 @@ def get_jd_top_terms(jd_clean: str, topn: int = TOPN_JD_TERMS):
     idx = v.argsort()[-topn:][::-1]
     return [jd_terms[i] for i in idx if v[i] > 0]
 
+
 def keyword_coverage(resume_clean: str, terms):
     if not terms:
         return 0.0
     t = resume_clean.lower()
     hit = sum(1 for term in terms if term in t)
     return hit / len(terms)
+
 
 def build_feature_df(jd_text: str, resumes: list):
     jd_clean = clean_text(jd_text)
@@ -131,7 +212,6 @@ def build_feature_df(jd_text: str, resumes: list):
         resume_ids.append(r.get("resume_id", None))
         resume_clean.append(clean_text(r.get("resume_text", "")))
 
-    # TF-IDF similarity in batch
     R = pair_vec.transform(resume_clean)
     J = pair_vec.transform([jd_clean])
     tfidf_sim = (R @ J.T).toarray().ravel().astype(float)
@@ -154,19 +234,22 @@ def build_feature_df(jd_text: str, resumes: list):
         edu_gap.append(education_score(rtxt) - jd_edu)
         len_resume.append(len(rtxt))
 
-    feat = pd.DataFrame({
-        "tfidf_sim": tfidf_sim,
-        "len_resume": np.array(len_resume, dtype=float),
-        "len_jd": np.array([jd_len] * len(resume_clean), dtype=float),
-        "skill_overlap": np.array(skill_overlap, dtype=float),
-        "keyword_cov": np.array(keyword_cov, dtype=float),
-        "years_gap": np.array(years_gap, dtype=float),
-        "edu_gap": np.array(edu_gap, dtype=float),
-    })
+    feat = pd.DataFrame(
+        {
+            "tfidf_sim": tfidf_sim,
+            "len_resume": np.array(len_resume, dtype=float),
+            "len_jd": np.array([jd_len] * len(resume_clean), dtype=float),
+            "skill_overlap": np.array(skill_overlap, dtype=float),
+            "keyword_cov": np.array(keyword_cov, dtype=float),
+            "years_gap": np.array(years_gap, dtype=float),
+            "edu_gap": np.array(edu_gap, dtype=float),
+        }
+    )
 
     X_df = feat[feature_names].copy()
     meta = [{"resume_id": resume_ids[i]} for i in range(len(resume_ids))]
     return X_df, meta
+
 
 def extract_text_from_pdf_bytes(pdf_bytes: bytes, max_pages: int = 5) -> str:
     text_parts = []
@@ -179,11 +262,31 @@ def extract_text_from_pdf_bytes(pdf_bytes: bytes, max_pages: int = 5) -> str:
 # -----------------------------
 # Routes
 # -----------------------------
+@app.get("/")
+def root():
+    html = """<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"/><title>Resume Ranker API</title></head>
+<body style="font-family:system-ui,Segoe UI,sans-serif;max-width:40rem;margin:2rem auto;padding:1.25rem;line-height:1.5">
+<h1 style="font-size:1.25rem">Flask API is running</h1>
+<p>This URL is the <strong>backend only</strong>. The dashboard is served by Vite.</p>
+<ol>
+<li>Open a terminal in the <code>frontend</code> folder (next to <code>backendNew</code>).</li>
+<li>Run <code>npm run dev</code>.</li>
+<li>Open the <strong>localhost</strong> URL Vite prints (e.g. <code>http://localhost:5173</code>), <em>not</em> this API port.</li>
+</ol>
+<p><a href="/health">GET /health</a> (JSON)</p>
+</body></html>"""
+    return Response(html, mimetype="text/html")
+
+
 @app.get("/health")
 def health():
     return jsonify({"status": "ok"})
 
+
 @app.route("/rank", methods=["POST", "OPTIONS"])
+@login_required
+@csrf_required
 def rank_endpoint():
     if request.method == "OPTIONS":
         return ("", 204)
@@ -202,38 +305,43 @@ def rank_endpoint():
     X_df, meta = build_feature_df(jd_text, resumes)
 
     scores = np.array(ranker.predict(X_df), dtype=float)
-    order = np.argsort(scores)[::-1][:min(top_k, len(scores))]
+    order = np.argsort(scores)[::-1][: min(top_k, len(scores))]
 
     out = {
         "top_k": top_k,
-        "results": [{"resume_id": meta[i]["resume_id"], "score": float(scores[i])} for i in order]
+        "results": [{"resume_id": meta[i]["resume_id"], "score": float(scores[i])} for i in order],
     }
 
     if explain:
-        contrib = np.array(ranker.predict(X_df, pred_contrib=True))  # (n, f+1)
+        contrib = np.array(ranker.predict(X_df, pred_contrib=True))
         explanations = []
         for i in order:
             row = contrib[i, :-1]
             top_idx = np.argsort(-np.abs(row))[:5]
-            explanations.append({
-                "resume_id": meta[i]["resume_id"],
-                "top_contributors": [
-                    {"feature": feature_names[j], "contribution": float(row[j])}
-                    for j in top_idx
-                ]
-            })
+            explanations.append(
+                {
+                    "resume_id": meta[i]["resume_id"],
+                    "top_contributors": [
+                        {"feature": feature_names[j], "contribution": float(row[j])}
+                        for j in top_idx
+                    ],
+                }
+            )
         out["explanations"] = explanations
 
     return jsonify(out)
 
+
 @app.route("/rank_pdf", methods=["POST", "OPTIONS"])
+@login_required
+@csrf_required
 def rank_pdf_endpoint():
     if request.method == "OPTIONS":
         return ("", 204)
 
     jd_text = (request.form.get("jd_text") or "").strip()
     top_k = int(request.form.get("top_k", "10"))
-    explain = (request.form.get("explain", "false").lower() in ["true", "1", "yes"])
+    explain = request.form.get("explain", "false").lower() in ["true", "1", "yes"]
 
     if not jd_text:
         return jsonify({"error": "jd_text is required (form-data field)"}), 400
@@ -270,7 +378,7 @@ def rank_pdf_endpoint():
 
     X_df, meta = build_feature_df(jd_text, resumes)
     scores = np.array(ranker.predict(X_df), dtype=float)
-    order = np.argsort(scores)[::-1][:min(top_k, len(scores))]
+    order = np.argsort(scores)[::-1][: min(top_k, len(scores))]
 
     out = {
         "top_k": top_k,
@@ -285,17 +393,20 @@ def rank_pdf_endpoint():
         for i in order:
             row = contrib[i, :-1]
             top_idx = np.argsort(-np.abs(row))[:5]
-            explanations.append({
-                "resume_id": meta[i]["resume_id"],
-                "top_contributors": [
-                    {"feature": feature_names[j], "contribution": float(row[j])}
-                    for j in top_idx
-                ]
-            })
+            explanations.append(
+                {
+                    "resume_id": meta[i]["resume_id"],
+                    "top_contributors": [
+                        {"feature": feature_names[j], "contribution": float(row[j])}
+                        for j in top_idx
+                    ],
+                }
+            )
         out["explanations"] = explanations
 
     return jsonify(out)
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=True)
+    # Default 5050: macOS often reserves 5000 (AirPlay). Override with PORT=5000 if free.
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5050)), debug=True)

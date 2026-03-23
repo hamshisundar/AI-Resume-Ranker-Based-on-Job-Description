@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { Upload, File, X, AlertCircle } from "lucide-react";
 import { rankPdf } from "../api/client";
-import { cn } from "../lib/utils";
 
 const PdfRankForm = ({ onResults, onError, setLoading }) => {
   const [jdText, setJdText] = useState("");
