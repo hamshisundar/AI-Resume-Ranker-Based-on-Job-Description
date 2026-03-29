@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { createContext, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { setCsrfTokenRef, fetchCsrfToken, fetchMe, loginRequest, logoutRequest, signupRequest } from "../api/client";
-import { AuthContext } from "./auth-context";
+
+export const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -48,7 +49,7 @@ export function AuthProvider({ children }) {
           ? "Request timed out. Is the backend running on the port in frontend/.env.development (VITE_PROXY_TARGET)?"
           : e?.response
             ? `API returned ${e.response.status}. For the UI, use the Vite dev URL (npm run dev), not the Flask port in the browser.`
-            : "Cannot reach the API. From backendNew run: python app.py (default port 5050 on macOS-friendly setup). Set VITE_PROXY_TARGET in frontend/.env.development to the same port and restart npm run dev.";
+            : "Cannot reach the API. From backend run: python run.py (default port 5050 on macOS-friendly setup). Set VITE_PROXY_TARGET in frontend/.env.development to the same port and restart npm run dev.";
       setBootstrapError(msg);
     } finally {
       setLoading(false);

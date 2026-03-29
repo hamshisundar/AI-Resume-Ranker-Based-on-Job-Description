@@ -1,25 +1,44 @@
 import React, { useState } from "react";
-import { Upload, File, X, AlertCircle } from "lucide-react";
+import { Upload, File, X, FileText } from "lucide-react";
 import { rankPdf } from "../api/client";
+import { cn } from "../lib/utils";
 
-const PdfRankForm = ({ onResults, onError, setLoading }) => {
+const RESUME_EXT = /\.(pdf|docx|doc)$/i;
+
+function isResumeFile(file) {
+  return RESUME_EXT.test(file.name || "");
+}
+
+const JD_ACCEPT = ".pdf,application/pdf";
+
+export default function PdfRankForm({ onResults, onError, setLoading }) {
+  const [jdMode, setJdMode] = useState("paste");
   const [jdText, setJdText] = useState("");
+  const [jdPdfFile, setJdPdfFile] = useState(null);
   const [files, setFiles] = useState([]);
   const [topK, setTopK] = useState(10);
   const [explain, setExplain] = useState(true);
 
-  const handleFileChange = (e) => {
-    if (e.target.files) {
-      const newFiles = Array.from(e.target.files).filter(
-        (file) => file.type === "application/pdf",
-      );
-      if (newFiles.length !== e.target.files.length) {
-        onError("Only PDF files are allowed.");
-      }
-      setFiles((prev) => [...prev, ...newFiles]);
-      // Reset input value to allow selecting the same file again if needed
-      e.target.value = "";
+  const handleResumePick = (e) => {
+    if (!e.target.files?.length) return;
+    const picked = Array.from(e.target.files);
+    const ok = picked.filter(isResumeFile);
+    if (ok.length !== picked.length) {
+      onError("Only PDF, DOC, and DOCX resumes are supported.");
     }
+    setFiles((prev) => [...prev, ...ok]);
+    e.target.value = "";
+  };
+
+  const handleJdPdfPick = (e) => {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    if (!f.name.toLowerCase().endsWith(".pdf")) {
+      onError("Job description upload must be a PDF.");
+      return;
+    }
+    setJdPdfFile(f);
   };
 
   const removeFile = (index) => {
@@ -28,21 +47,33 @@ const PdfRankForm = ({ onResults, onError, setLoading }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!jdText.trim()) {
-      onError("Please enter a job description.");
+
+    if (jdMode === "paste") {
+      if (!jdText.trim()) {
+        onError("Paste a job description or switch to “Upload JD (PDF)”.");
+        return;
+      }
+    } else if (!jdPdfFile) {
+      onError("Choose a PDF file for the job description.");
       return;
     }
+
     if (files.length === 0) {
-      onError("Please upload at least one PDF resume.");
+      onError("Upload at least one resume (PDF, DOC, or DOCX).");
       return;
     }
 
     setLoading(true);
     try {
       const formData = new FormData();
-      formData.append("jd_text", jdText);
       formData.append("top_k", topK);
       formData.append("explain", explain.toString());
+
+      if (jdMode === "paste") {
+        formData.append("jd_text", jdText);
+      } else {
+        formData.append("jd_pdf", jdPdfFile);
+      }
 
       files.forEach((file) => {
         formData.append("files", file);
@@ -68,27 +99,94 @@ const PdfRankForm = ({ onResults, onError, setLoading }) => {
       className="space-y-6 bg-white p-6 rounded-lg shadow-sm border border-gray-200"
     >
       <div>
-        <label
-          htmlFor="jd_text"
-          className="block text-sm font-medium text-gray-700 mb-1"
-        >
-          Job Description <span className="text-red-500">*</span>
-        </label>
-        <textarea
-          id="jd_text"
-          rows={6}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-          placeholder="Paste the job description here..."
-          value={jdText}
-          onChange={(e) => setJdText(e.target.value)}
-          required
-        />
+        <span className="block text-sm font-medium text-gray-700 mb-2">Job description</span>
+        <div className="flex p-1 gap-1 bg-gray-100 rounded-lg w-full max-w-md mb-3">
+          <button
+            type="button"
+            onClick={() => {
+              setJdMode("paste");
+              setJdPdfFile(null);
+            }}
+            className={cn(
+              "flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium rounded-md transition-all",
+              jdMode === "paste"
+                ? "bg-white text-blue-600 shadow-sm"
+                : "text-gray-500 hover:text-gray-700 hover:bg-gray-200",
+            )}
+          >
+            <FileText className="w-4 h-4" />
+            Paste JD
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setJdMode("pdf");
+              setJdText("");
+            }}
+            className={cn(
+              "flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium rounded-md transition-all",
+              jdMode === "pdf"
+                ? "bg-white text-blue-600 shadow-sm"
+                : "text-gray-500 hover:text-gray-700 hover:bg-gray-200",
+            )}
+          >
+            <Upload className="w-4 h-4" />
+            Upload JD (PDF)
+          </button>
+        </div>
+
+        {jdMode === "paste" ? (
+          <>
+            <label htmlFor="jd_text" className="sr-only">
+              Job description text
+            </label>
+            <textarea
+              id="jd_text"
+              rows={6}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              placeholder="Paste the job description here…"
+              value={jdText}
+              onChange={(e) => setJdText(e.target.value)}
+            />
+          </>
+        ) : (
+          <div className="space-y-2">
+            <div className="flex justify-center px-6 py-8 border-2 border-gray-300 border-dashed rounded-md hover:border-blue-400 transition-colors relative">
+              <input
+                type="file"
+                accept={JD_ACCEPT}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                onChange={handleJdPdfPick}
+              />
+              <div className="text-center text-sm text-gray-600 pointer-events-none">
+                {jdPdfFile ? (
+                  <span className="font-medium text-gray-900">{jdPdfFile.name}</span>
+                ) : (
+                  <>
+                    <span className="font-medium text-blue-600">Choose JD PDF</span>
+                    <p className="text-xs text-gray-500 mt-1">One PDF · text is extracted automatically</p>
+                  </>
+                )}
+              </div>
+            </div>
+            {jdPdfFile && (
+              <button
+                type="button"
+                onClick={() => setJdPdfFile(null)}
+                className="text-xs text-blue-600 hover:text-blue-800"
+              >
+                Remove file
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          Upload Resumes (PDF only) <span className="text-red-500">*</span>
+          Upload resumes <span className="text-red-500">*</span>
         </label>
+        <p className="text-xs text-gray-500 mb-2">PDF, Microsoft Word (.docx), or legacy .doc (best-effort).</p>
         <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md hover:border-blue-400 transition-colors cursor-pointer relative">
           <input
             id="file-upload"
@@ -96,18 +194,16 @@ const PdfRankForm = ({ onResults, onError, setLoading }) => {
             type="file"
             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
             multiple
-            accept="application/pdf"
-            onChange={handleFileChange}
+            accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            onChange={handleResumePick}
           />
           <div className="space-y-1 text-center">
             <Upload className="mx-auto h-12 w-12 text-gray-400" />
             <div className="flex text-sm text-gray-600">
-              <span className="font-medium text-blue-600 hover:text-blue-500">
-                Upload files
-              </span>
+              <span className="font-medium text-blue-600 hover:text-blue-500">Upload files</span>
               <p className="pl-1">or drag and drop</p>
             </div>
-            <p className="text-xs text-gray-500">PDF up to 10MB</p>
+            <p className="text-xs text-gray-500">Multiple files · up to ~10MB each (server limit)</p>
           </div>
         </div>
 
@@ -115,7 +211,7 @@ const PdfRankForm = ({ onResults, onError, setLoading }) => {
           <ul className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {files.map((file, index) => (
               <li
-                key={index}
+                key={`${file.name}-${index}`}
                 className="flex items-center justify-between p-2 text-sm bg-gray-50 rounded-md border border-gray-200"
               >
                 <div className="flex items-center overflow-hidden">
@@ -137,10 +233,7 @@ const PdfRankForm = ({ onResults, onError, setLoading }) => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
-          <label
-            htmlFor="top_k"
-            className="block text-sm font-medium text-gray-700 mb-1"
-          >
+          <label htmlFor="top_k" className="block text-sm font-medium text-gray-700 mb-1">
             Top K Results
           </label>
           <input
@@ -150,7 +243,7 @@ const PdfRankForm = ({ onResults, onError, setLoading }) => {
             max="100"
             className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
             value={topK}
-            onChange={(e) => setTopK(parseInt(e.target.value) || 10)}
+            onChange={(e) => setTopK(parseInt(e.target.value, 10) || 10)}
           />
         </div>
 
@@ -163,11 +256,8 @@ const PdfRankForm = ({ onResults, onError, setLoading }) => {
               checked={explain}
               onChange={(e) => setExplain(e.target.checked)}
             />
-            <label
-              htmlFor="explain"
-              className="ml-2 block text-sm text-gray-900"
-            >
-              Include Explanations
+            <label htmlFor="explain" className="ml-2 block text-sm text-gray-900">
+              Include ML diagnostics (optional)
             </label>
           </div>
         </div>
@@ -183,6 +273,4 @@ const PdfRankForm = ({ onResults, onError, setLoading }) => {
       </div>
     </form>
   );
-};
-
-export default PdfRankForm;
+}

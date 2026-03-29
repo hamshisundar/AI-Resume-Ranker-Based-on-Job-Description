@@ -1,39 +1,39 @@
-import React, { useEffect, useState } from 'react';
-import { checkHealth } from '../api/client';
-import { CircleCheck, CircleX, Loader2 } from 'lucide-react';
+import React, { useEffect, useState } from "react";
+import { checkHealth } from "../api/client";
+import { CircleCheck, CircleX, Loader2 } from "lucide-react";
+
 const BackendStatus = () => {
-  const [status, setStatus] = useState('checking'); // checking, ok, error
+  const [status, setStatus] = useState("checking");
 
   useEffect(() => {
     const verifyHealth = async () => {
       try {
         await checkHealth();
-        setStatus('ok');
+        setStatus("ok");
       } catch {
-        setStatus('error');
+        setStatus("error");
       }
     };
 
     verifyHealth();
-    // Poll every 30 seconds
     const interval = setInterval(verifyHealth, 30000);
     return () => clearInterval(interval);
   }, []);
 
   return (
     <div className="flex items-center gap-2 text-sm font-medium">
-      <span>Backend:</span>
-      {status === 'checking' && (
-        <span className="flex items-center gap-1 text-yellow-600">
-          <Loader2 className="w-4 h-4 animate-spin" /> Checking...
+      <span className="text-gray-600">Backend:</span>
+      {status === "checking" && (
+        <span className="flex items-center gap-1 text-amber-600">
+          <Loader2 className="w-4 h-4 animate-spin" /> Checking…
         </span>
       )}
-      {status === 'ok' && (
+      {status === "ok" && (
         <span className="flex items-center gap-1 text-green-600">
           <CircleCheck className="w-4 h-4" /> Online
         </span>
       )}
-      {status === 'error' && (
+      {status === "error" && (
         <span className="flex items-center gap-1 text-red-600">
           <CircleX className="w-4 h-4" /> Offline
         </span>

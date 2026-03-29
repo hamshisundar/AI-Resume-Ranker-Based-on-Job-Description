@@ -7,19 +7,57 @@ GitHub repo: [AI-Resume-Ranker-Based-on-Job-Description](https://github.com/hams
 
 ---
 
-## Project Structure
+## Repository layout
 
-- **backendNew** – Flask API that:
-  - Loads the trained LightGBM ranker and TF‑IDF vectorizers.
-  - Exposes endpoints:
-    - `GET /health` – health check.
-    - `GET /auth/csrf`, `POST /auth/signup`, `POST /auth/login`, `POST /auth/logout`, `GET /auth/me` – authentication (when enabled).
-    - `POST /rank` – rank plain‑text resumes.
-    - `POST /rank_pdf` – rank uploaded PDF resumes.
-- **frontend** – React + Vite UI:
-  - Upload multiple PDF resumes or paste resume text.
-  - Sends requests to the backend and shows ranked results and feature explanations.
-  - Sign up / sign in when authentication is enabled (see **Authentication** below).
+```
+CVFilter/
+├── .gitignore              # Repo-wide ignores (Python, Node, secrets, OS junk)
+├── README.md
+├── backend/                # Flask API (Python)
+│   ├── .env.example        # Template for local/production env vars (copy → .env)
+│   ├── .gitignore
+│   ├── artifacts/          # Trained model + vectorizers (tracked in git if you choose)
+│   ├── cvfilter/           # Application package (`create_app`, routes, services)
+│   ├── instance/           # Local SQLite (created at runtime; not committed)
+│   ├── requirements.txt
+│   ├── run.py              # Dev server: python run.py
+│   ├── run_dev.sh          # Same with default SECRET_KEY / PORT
+│   └── wsgi.py             # Production: gunicorn wsgi:app
+└── frontend/               # React + Vite UI
+    ├── .env.development    # Vite dev proxy target (optional overrides)
+    └── src/
+```
+
+**Separation of concerns:** `frontend/` is only the browser app; `backend/` is only the API. They communicate over HTTP (dev proxy or `VITE_API_BASE_URL` in production builds).
+
+---
+
+## Backend package (`cvfilter/`)
+
+| Area | Role |
+|------|------|
+| `cvfilter/__init__.py` | `create_app()` — wires config, CORS, DB, blueprints, loads ML artifacts |
+| `cvfilter/config.py` | Paths and Flask config from environment |
+| `cvfilter/extensions.py` | Shared `db`, `limiter` |
+| `cvfilter/models.py` | SQLAlchemy models |
+| `cvfilter/security.py` | Auth/CSRF helpers and decorators |
+| `cvfilter/auth/routes.py` | `/auth/*` blueprint |
+| `cvfilter/routes/main.py` | `/`, `/health` |
+| `cvfilter/routes/rank.py` | `/rank`, `/rank_pdf` |
+| `cvfilter/services/ranking.py` | Feature building, PDF text, LightGBM inference |
+| `cvfilter/services/recruiter_insights.py` | Recruiter-facing scores, skills gaps, explanations, #1 vs #2 comparison |
+| `cvfilter/utils/` | Reusable text helpers and constants |
+
+### Ranking API response (recruiter-focused)
+
+`POST /rank` and `POST /rank_pdf` return JSON including:
+
+- **`results`** — compact list: `rank`, `resume_id`, **`score` as 0–100** (normalized blend of ranker + hiring heuristics).
+- **`candidates`** — full cards: matched/missing skills, experience/education summaries, fit **label**, **recommendation**, **score_breakdown**, plain-language **explanation**.
+- **`comparison`** — when at least two candidates: table-style **Why #1 vs #2**.
+- **`explanations`** (optional) — only if `explain: true`: raw LightGBM feature contributions for ML/debug use.
+
+**Optional upgrade:** To add true semantic similarity beyond TF-IDF, install `sentence-transformers`, encode JD + resume paragraphs in a small service module, and blend that cosine score into `recruiter_insights.score_breakdown_parts` (keep LightGBM for final ordering until you retrain).
 
 ---
 
@@ -39,78 +77,71 @@ The API uses **Flask server-side sessions** (HTTP-only, `SameSite=Lax` cookies),
 
 ### Environment variables (backend)
 
+Copy `backend/.env.example` to `backend/.env` and adjust. `python-dotenv` loads `.env` when the app starts (do **not** commit `.env`).
+
 | Variable | Description |
 |----------|-------------|
 | `SECRET_KEY` | Session signing secret. **Set in production** (defaults to a dev placeholder). |
-| `DATABASE_URL` | SQLAlchemy URL (default: `sqlite:///…/instance/app.db` under `backendNew/instance`). |
+| `DATABASE_URL` | SQLAlchemy URL (default: `sqlite:///…/instance/app.db` under `backend/instance`). |
 | `CORS_ORIGINS` | Comma-separated list of allowed browser origins (e.g. `http://localhost:5173`). Defaults include common Vite dev ports. |
 | `SESSION_COOKIE_SECURE` | Set to `true` when serving the API over HTTPS. |
 | `REQUIRE_AUTH` | Set to `false` to skip login and CSRF on ranking (local API testing only). |
+| `PORT` | Used by `run.py` only (default `5050`). |
+| `ARTIFACTS_DIR` | Directory with `lgbm_ranker.pkl`, vectorizers, `config.json`. Default: `artifacts/` next to `run.py`. |
 
 ### Database
 
-On first run the app creates `backendNew/instance/app.db` and the `users` table. No separate migration CLI is required for this project; delete `instance/app.db` to reset users.
+On first run the app creates `backend/instance/app.db` and the `users` table. Delete `instance/app.db` to reset users.
 
 ### Frontend env
 
-- **Development:** The app **always** calls `/api/...` in dev; Vite proxies that to `VITE_PROXY_TARGET` from `frontend/.env.development` (default `http://127.0.0.1:5050`, matching Flask’s default `PORT`). If you run Flask on another port, change `VITE_PROXY_TARGET` to match. `VITE_API_BASE_URL` is ignored during `npm run dev`.
-- **Production / direct API:** Set `VITE_API_BASE_URL` to the full API origin. It must appear in the backend `CORS_ORIGINS` list. The app uses `credentials: 'include'` and sends `X-CSRF-Token` on mutating requests.
+- **Development:** The app calls `/api/...`; Vite proxies to `VITE_PROXY_TARGET` from `frontend/.env.development` (default `http://127.0.0.1:5050`). Match your Flask `PORT` if you change it.
+- **Production / direct API:** Set `VITE_API_BASE_URL` to the full API origin. It must appear in the backend `CORS_ORIGINS`. The app uses `credentials: 'include'` and sends `X-CSRF-Token` on mutating requests.
 
-If you call the API **directly** from the browser (no proxy), use the **same hostname** in `VITE_API_BASE_URL` as in the browser bar (`127.0.0.1` vs `localhost` matters for `SameSite=Lax` cookies).
+Use the **same hostname** in `VITE_API_BASE_URL` as in the browser bar (`127.0.0.1` vs `localhost` matters for `SameSite=Lax` cookies).
 
 ### Local testing (auth enabled)
 
-1. Start backend and frontend as in **Quick Start** (ensure the Vite origin is allowed by CORS, or set `CORS_ORIGINS`).
-2. Open the app, go to **Sign up**, create an account, then use the dashboard.
-3. `curl` against ranking endpoints with auth requires a session cookie and CSRF; for quick API-only tests, run the backend with `REQUIRE_AUTH=false`.
-
-### Files touched by auth (reference)
-
-**Backend:** `app.py`, `requirements.txt`, `extensions.py`, `models.py`, `security.py`, `auth_routes.py`, `.gitignore` (ignores `instance/`).
-
-**Frontend:** `package.json`, `src/App.jsx`, `src/api/client.js`, `src/auth/*`, `src/pages/*`, `src/components/PrivateRoute.jsx`, `src/pages/Dashboard.jsx` (dashboard extracted from former `App.jsx`), minor lint fixes in `BackendStatus.jsx` and `PdfRankForm.jsx`.
-
-**macOS note:** The context module is named `auth-context.js` (not `authContext.js`) so imports like `./auth/AuthContext` resolve to `AuthContext.jsx` on case-insensitive disks; otherwise `npm run build` can fail.
+1. Start backend and frontend as in **Quick Start**.
+2. Open the app, **Sign up**, then use the dashboard.
+3. For quick API-only tests, run the backend with `REQUIRE_AUTH=false`.
 
 ---
 
 ## Quick Start
 
-The repo root (**CVFilter**) contains two folders side by side: **`backendNew`** and **`frontend`**.  
-If your terminal is inside `backendNew`, the frontend is **`../frontend`**, not `frontend`.
+The repo root (**CVFilter**) has **`backend`** and **`frontend`** side by side.  
+If your shell is inside `backend`, the frontend is **`../frontend`**.
 
 ### 1. Backend (Flask API)
 
 ```bash
-cd backendNew
+cd backend
 
-# (optional) create virtual env
 python3 -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
 
 pip install -r requirements.txt
+cp .env.example .env        # optional; edit secrets for real deploys
 ```
 
-Run the server (pick one):
+Run the server:
 
 ```bash
 export SECRET_KEY="dev-change-me"
-python app.py
+python run.py
 ```
 
-Flask defaults to **port 5050** so `python app.py` works on macOS where **5000 is often taken** (AirPlay Receiver). To use 5000 instead: `export PORT=5000` and set `VITE_PROXY_TARGET=http://127.0.0.1:5000`.
+Default **port 5050** avoids macOS **5000** (AirPlay). For port 5000: `export PORT=5000` and set `VITE_PROXY_TARGET=http://127.0.0.1:5000` in the frontend env.
 
-Or use the helper script (defaults: `PORT=5050`, `SECRET_KEY=dev-secret-change-me`):
+Or:
 
 ```bash
 chmod +x run_dev.sh
 ./run_dev.sh
 ```
 
-**zsh tip:** Put `export` lines on their own lines. Do not paste trailing text like `if 5000 is taken` without a `#` at the start of the comment, or zsh will error (`not an identifier: 5000`). Run `pip install -r requirements.txt` alone; do not paste `#` comments on the same line if your shell mangles them.
-
-The API runs on `http://127.0.0.1:5050` by default (override with `PORT`).  
-Check health (adjust port if needed):
+Check health:
 
 ```bash
 curl http://127.0.0.1:5050/health
@@ -118,63 +149,53 @@ curl http://127.0.0.1:5050/health
 
 ### 2. Frontend (React/Vite)
 
-From the **repository root** (the folder that contains `frontend`):
-
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
 
-If you are still inside **`backendNew`**, go up one level first:
+Open the URL Vite prints (e.g. `http://localhost:5173`) — **not** only the API URL. The UI is served by Vite; the API shows a short HTML hint at `/`.
+
+### Production-style API process
+
+From `backend/` (after `pip install -r requirements.txt`):
 
 ```bash
-cd ../frontend
-npm install
-npm run dev
+gunicorn -w 2 -b 0.0.0.0:5050 wsgi:app
 ```
 
-Open the URL **Vite** prints (e.g. `http://localhost:5173`) in your browser — **not** the Flask API URL (e.g. `http://127.0.0.1:5050`). The UI only loads from Vite; the API alone shows a short HTML hint at `/`.
-
-**Shell tip:** Run `python app.py`, not `run python app.py` (`run` is not a command).
-
-In **development**, requests go to `/api/...` and Vite forwards them to `VITE_PROXY_TARGET` from `frontend/.env.development` (match your Flask `PORT`). Set `VITE_API_BASE_URL` only when you want to bypass the proxy (e.g. production build against a remote API).
+Set `SECRET_KEY`, `CORS_ORIGINS`, `SESSION_COOKIE_SECURE=true`, and a real `DATABASE_URL` in the environment (or `.env` on the server). Serve the **frontend** as static files (e.g. `npm run build` → CDN or nginx) with `VITE_API_BASE_URL` pointing at your API.
 
 ### Troubleshooting
 
-**`Port 5000 is in use` (macOS)**  
-Common cause: **AirPlay Receiver** (System Settings → General → AirDrop & Handoff). This project defaults the API to **5050** so `python app.py` usually works without changing system settings. You can still run on 5000 with `PORT=5000` if that port is free.
+**`Port 5000 is in use` (macOS)** — Often AirPlay. This project defaults the API to **5050**.
 
-**`Address already in use` (port 5050 or whatever you chose)**  
-Another process is still bound to that port. Stop it or use another port — **and set `VITE_PROXY_TARGET` in `frontend/.env.development` to the same port**, then restart `npm run dev`.
+**`Address already in use`** — Change `PORT` and `VITE_PROXY_TARGET`, restart Vite.
 
-```bash
-lsof -i :5050
-kill <PID>
-```
-
-Example alternate port:
-
-```bash
-export PORT=5002
-python app.py
-```
-
-Then set `frontend/.env.development` to `VITE_PROXY_TARGET=http://127.0.0.1:5002` and restart Vite.
-
-**`cd: no such file or directory: frontend`**  
-You are inside `backendNew`. Use `cd ../frontend` (or `cd` to the repo root, then `cd frontend`).
-
-**`npm` looks for `package.json` under `backendNew`**  
-Same cause: run `npm` from the **`frontend`** directory, not `backendNew`.
+**`cd: no such file or directory: frontend`** — You are inside `backend`; use `cd ../frontend`.
 
 ---
 
 ## How to Use
 
-1. Start the **backend** and **frontend** as above.
-2. In the UI:
-   - Choose **Upload & Rank PDFs** to upload candidate resumes as PDF files, or
-   - Choose **Paste & Rank Text** to paste resume contents.
-3. Paste the **job description**, set **Top K**, optionally enable **explanations**, and click **Rank Resumes**.
+1. Start **backend** and **frontend**.
+2. In the UI: **Upload & Rank PDFs** or **Paste & Rank Text**.
+3. Paste the **job description**, set **Top K**, optionally **explanations**, then **Rank Resumes**.
 
+---
+
+## What not to commit (see `.gitignore`)
+
+| Pattern | Why |
+|---------|-----|
+| `.venv/`, `venv/` | Local Python environments; recreate with `python -m venv`. |
+| `node_modules/` | npm dependencies; restore with `npm install`. |
+| `.env`, `.env.local` | Secrets and machine-specific URLs. |
+| `instance/`, `*.db` (under instance) | Local SQLite and runtime data. |
+| `__pycache__/`, `*.pyc` | Python bytecode. |
+| `frontend/dist/` | Production build output; CI/build servers regenerate it. |
+| `.DS_Store` | macOS folder metadata. |
+| `*.zip` | Large ad-hoc archives; keep canonical files under `backend/artifacts/`. |
+
+**Note:** The `.git/` directory is your repository metadata; it is not listed in `.gitignore` because Git already manages it — you never “commit `.git`” as project files.

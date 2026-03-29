@@ -1,0 +1,11 @@
+# Local SQLite and uploads live under instance/ (see root .gitignore).
+instance/
+
+# Python bytecode / venv when created inside backend/
+__pycache__/
+*.pyc
+.venv/
+
+# Accidental Node files in backend/
+package-lock.json
+node_modules/

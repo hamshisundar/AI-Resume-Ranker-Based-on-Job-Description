@@ -1,0 +1,14 @@
+flask
+python-dotenv
+flask-cors
+flask-sqlalchemy
+flask-limiter
+argon2-cffi
+numpy
+pandas
+joblib
+scikit-learn
+lightgbm
+gunicorn
+pdfplumber
+python-docx

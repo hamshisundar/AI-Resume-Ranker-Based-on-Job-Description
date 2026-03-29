@@ -179,7 +179,7 @@ const TextRankForm = ({ onResults, onError, setLoading }) => {
               htmlFor="explain"
               className="ml-2 block text-sm text-gray-900"
             >
-              Include Explanations
+              Include ML diagnostics (optional)
             </label>
           </div>
         </div>

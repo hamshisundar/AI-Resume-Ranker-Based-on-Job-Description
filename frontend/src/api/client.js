@@ -79,4 +79,19 @@ export const rankPdf = async (formData) => {
   return response.data;
 };
 
+export const listRankingHistory = async () => {
+  const response = await apiClient.get("/history");
+  return response.data;
+};
+
+export const getRankingHistory = async (id) => {
+  const response = await apiClient.get(`/history/${id}`);
+  return response.data;
+};
+
+export const deleteRankingHistory = async (id) => {
+  const response = await apiClient.delete(`/history/${id}`);
+  return response.data;
+};
+
 export default apiClient;
