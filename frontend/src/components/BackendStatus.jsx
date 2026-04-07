@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { checkHealth } from "../api/client";
-import { CircleCheck, CircleX, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 const BackendStatus = () => {
   const [status, setStatus] = useState("checking");
@@ -21,21 +21,24 @@ const BackendStatus = () => {
   }, []);
 
   return (
-    <div className="flex items-center gap-2 text-sm font-medium">
-      <span className="text-gray-600">Backend:</span>
+    <div className="flex items-center gap-2 text-[11px] sm:text-xs text-slate-500 tabular-nums shrink-0" title="API health check">
+      <span className="text-slate-400">API</span>
       {status === "checking" && (
-        <span className="flex items-center gap-1 text-amber-600">
-          <Loader2 className="w-4 h-4 animate-spin" /> Checking…
+        <span className="flex items-center gap-1.5 text-slate-500">
+          <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" aria-hidden />
+          <span>…</span>
         </span>
       )}
       {status === "ok" && (
-        <span className="flex items-center gap-1 text-green-600">
-          <CircleCheck className="w-4 h-4" /> Online
+        <span className="flex items-center gap-1.5 text-slate-600">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden />
+          <span>up</span>
         </span>
       )}
       {status === "error" && (
-        <span className="flex items-center gap-1 text-red-600">
-          <CircleX className="w-4 h-4" /> Offline
+        <span className="flex items-center gap-1.5 text-slate-700">
+          <span className="h-1.5 w-1.5 rounded-full bg-red-500" aria-hidden />
+          <span>down</span>
         </span>
       )}
     </div>

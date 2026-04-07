@@ -1,36 +1,32 @@
-import React, { createContext, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { setCsrfTokenRef, fetchCsrfToken, fetchMe, loginRequest, logoutRequest, signupRequest } from "../api/client";
+import React, { createContext, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  apiErrorMessage,
+  fetchMe,
+  loginRequest,
+  logoutRequest,
+  setAccessToken,
+  signupRequest,
+  getAccessToken,
+} from "../api/client";
 
 export const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
-  const [authDisabled, setAuthDisabled] = useState(false);
   const [loading, setLoading] = useState(true);
   const [bootstrapError, setBootstrapError] = useState(null);
-  const csrfRef = useRef(null);
-
-  useEffect(() => {
-    setCsrfTokenRef(csrfRef);
-  }, []);
-
-  const refreshCsrf = useCallback(async () => {
-    const token = await fetchCsrfToken();
-    csrfRef.current = token;
-    return token;
-  }, []);
 
   const refreshMe = useCallback(async () => {
-    const data = await fetchMe();
-    if (data.auth_disabled) {
-      setAuthDisabled(true);
+    if (!getAccessToken()) {
       setUser(null);
-    } else if (data.authenticated && data.user) {
-      setAuthDisabled(false);
+      return { authenticated: false, user: null };
+    }
+    const data = await fetchMe();
+    if (data.authenticated && data.user) {
       setUser(data.user);
     } else {
-      setAuthDisabled(false);
       setUser(null);
+      setAccessToken(null);
     }
     return data;
   }, []);
@@ -39,22 +35,25 @@ export function AuthProvider({ children }) {
     setLoading(true);
     setBootstrapError(null);
     try {
-      await refreshCsrf();
       await refreshMe();
     } catch (e) {
       setUser(null);
-      setAuthDisabled(false);
+      const status = e?.response?.status;
+      const detail = e?.response ? apiErrorMessage(e) : null;
+      const isServerError = typeof status === "number" && status >= 500;
       const msg =
         e?.code === "ECONNABORTED" || String(e?.message || "").includes("timeout")
-          ? "Request timed out. Is the backend running on the port in frontend/.env.development (VITE_PROXY_TARGET)?"
+          ? "Request timed out. Check that the API is running and VITE_PROXY_TARGET in frontend/.env.development matches your Uvicorn port."
           : e?.response
-            ? `API returned ${e.response.status}. For the UI, use the Vite dev URL (npm run dev), not the Flask port in the browser.`
-            : "Cannot reach the API. From backend run: python run.py (default port 5050 on macOS-friendly setup). Set VITE_PROXY_TARGET in frontend/.env.development to the same port and restart npm run dev.";
+            ? isServerError
+              ? `API error (${status})${detail && detail !== e?.message ? `: ${detail}` : ""}. If you use Vite, ensure VITE_PROXY_TARGET matches the backend (default http://127.0.0.1:8000) and restart npm run dev.`
+              : `API error (${status}). Open the app via the Vite dev URL (npm run dev), not the API port only.${detail && detail !== e?.message ? ` ${detail}` : ""}`
+            : "Cannot reach the API. Start the backend (e.g. uvicorn on port 8000) and match VITE_PROXY_TARGET; see the project README.";
       setBootstrapError(msg);
     } finally {
       setLoading(false);
     }
-  }, [refreshCsrf, refreshMe]);
+  }, [refreshMe]);
 
   useEffect(() => {
     bootstrap();
@@ -62,49 +61,43 @@ export function AuthProvider({ children }) {
 
   const login = useCallback(
     async (email, password) => {
-      await refreshCsrf();
-      await loginRequest({ email, password });
-      await refreshCsrf();
-      await refreshMe();
+      const data = await loginRequest({ email, password });
+      setAccessToken(data.access_token);
+      setUser(data.user);
     },
-    [refreshCsrf, refreshMe],
+    [],
   );
 
   const signup = useCallback(
     async (email, password) => {
-      await refreshCsrf();
-      await signupRequest({ email, password });
-      await refreshCsrf();
-      await refreshMe();
+      const data = await signupRequest({ email, password });
+      setAccessToken(data.access_token);
+      setUser(data.user);
     },
-    [refreshCsrf, refreshMe],
+    [],
   );
 
   const logout = useCallback(async () => {
-    await logoutRequest();
-    localStorage.removeItem("token");
-    localStorage.removeItem("authToken");
-    localStorage.removeItem("user");
-    sessionStorage.removeItem("token");
-    sessionStorage.removeItem("authToken");
-    sessionStorage.removeItem("user");
-    await refreshCsrf();
-    await refreshMe();
-  }, [refreshCsrf, refreshMe]);
+    setAccessToken(null);
+    setUser(null);
+    try {
+      await logoutRequest();
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   const value = useMemo(
     () => ({
       user,
-      authDisabled,
       loading,
       bootstrapError,
       login,
       signup,
       logout,
       refreshMe,
-      refreshCsrf,
     }),
-    [user, authDisabled, loading, bootstrapError, login, signup, logout, refreshMe, refreshCsrf],
+    [user, loading, bootstrapError, login, signup, logout, refreshMe],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

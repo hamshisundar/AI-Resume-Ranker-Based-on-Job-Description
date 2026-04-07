@@ -1,0 +1,63 @@
+jd,cv,label
+"Machine Learning Engineer Python ML AWS","Machine Learning Engineer with 5+ years of experience developing and deploying ML models using Python, TensorFlow, and AWS SageMaker. Strong background in MLOps, Docker, and CI/CD pipelines.",3
+"Machine Learning Engineer Python ML AWS","Senior ML Engineer with 7 years of experience working with PyTorch, Kubernetes, and scalable model deployment on AWS infrastructure.",3
+"Machine Learning Engineer Python ML AWS","Data Scientist with 4 years of experience building ML models using Python and Scikit-learn. Limited exposure to AWS and no deployment experience.",2
+"Machine Learning Engineer Python ML AWS","ML Engineer with 3 years of experience in machine learning algorithms and Python but no hands-on cloud deployment.",2
+"Machine Learning Engineer Python ML AWS","Python Developer with 2 years of backend development experience and exposure to basic ML concepts during academic projects.",1
+"Machine Learning Engineer Python ML AWS","Software Engineer with experience in APIs and databases but no machine learning background.",1
+"Machine Learning Engineer Python ML AWS","Marketing Manager with 6 years of experience in branding, campaigns, and customer acquisition.",0
+"Machine Learning Engineer Python ML AWS","HR Specialist with recruitment and onboarding experience across multiple domains.",0
+
+"Machine Learning Engineer NLP Deep Learning","NLP Engineer with 5+ years of experience building transformer-based models (BERT, GPT) and deploying APIs using FastAPI and Docker.",3
+"Machine Learning Engineer NLP Deep Learning","Deep Learning Engineer with strong experience in CNN, RNN, and NLP pipelines deployed in production.",3
+"Machine Learning Engineer NLP Deep Learning","ML Engineer with 3 years of experience including some NLP work but limited deep learning expertise.",2
+"Machine Learning Engineer NLP Deep Learning","Data Scientist with NLP project exposure but mostly focused on analytics and dashboards.",2
+"Machine Learning Engineer NLP Deep Learning","Python Developer with scripting and data processing experience, no NLP or DL exposure.",1
+"Machine Learning Engineer NLP Deep Learning","Software Engineer with backend development experience only.",1
+"Machine Learning Engineer NLP Deep Learning","Finance Analyst with accounting and auditing experience.",0
+"Machine Learning Engineer NLP Deep Learning","Graphic Designer experienced in Adobe tools and UI design.",0
+
+"Backend Developer Python APIs","Backend Developer with 4+ years of experience building REST APIs using FastAPI, Django, and PostgreSQL.",3
+"Backend Developer Python APIs","Python Backend Engineer with microservices architecture experience, Docker, and production API systems.",3
+"Backend Developer Python APIs","Full-stack developer with Node.js and Python, some API experience but not deeply specialized.",2
+"Backend Developer Python APIs","Software Engineer with Python experience but no API development exposure.",2
+"Backend Developer Python APIs","Frontend Developer with React and UI expertise, minimal backend skills.",1
+"Backend Developer Python APIs","QA Engineer with automation testing experience.",1
+"Backend Developer Python APIs","Sales Executive with strong communication skills.",0
+"Backend Developer Python APIs","Teacher with 8 years of teaching experience.",0
+
+"Data Scientist Python SQL ML","Data Scientist with 6 years of experience in Python, SQL, and ML models. Built predictive analytics pipelines for business insights.",3
+"Data Scientist Python SQL ML","Senior Data Scientist with expertise in deep learning, SQL, and large-scale data processing.",3
+"Data Scientist Python SQL ML","ML Engineer with Python skills but lacks strong SQL and data analytics experience.",2
+"Data Scientist Python SQL ML","Data Analyst with strong SQL dashboards and reporting experience, limited ML exposure.",2
+"Data Scientist Python SQL ML","Python Developer with basic data analysis knowledge using Pandas.",1
+"Data Scientist Python SQL ML","Backend Developer with API experience only.",1
+"Data Scientist Python SQL ML","Customer Support Executive with service experience.",0
+"Data Scientist Python SQL ML","Bank Clerk handling financial records.",0
+
+"DevOps Engineer AWS Docker Kubernetes","DevOps Engineer with 5+ years managing AWS infrastructure, Docker containers, Kubernetes clusters, and CI/CD pipelines.",3
+"DevOps Engineer AWS Docker Kubernetes","Senior DevOps Engineer with Terraform, Kubernetes, and automation pipelines experience.",3
+"DevOps Engineer AWS Docker Kubernetes","Cloud Engineer with AWS experience but limited Kubernetes exposure.",2
+"DevOps Engineer AWS Docker Kubernetes","Software Engineer with some AWS knowledge but no DevOps practices.",2
+"DevOps Engineer AWS Docker Kubernetes","System Administrator with scripting and server maintenance experience.",1
+"DevOps Engineer AWS Docker Kubernetes","IT Support Engineer with troubleshooting skills.",1
+"DevOps Engineer AWS Docker Kubernetes","Designer with creative background.",0
+"DevOps Engineer AWS Docker Kubernetes","HR Manager with people management experience.",0
+
+"Frontend Developer React JS","Frontend Developer with 4 years of experience building applications using React, Redux, and Next.js.",3
+"Frontend Developer React JS","Senior Frontend Engineer with performance optimization and scalable UI development experience.",3
+"Frontend Developer React JS","Full-stack developer with React and Node.js experience.",2
+"Frontend Developer React JS","Web Developer with HTML, CSS, and basic JavaScript knowledge.",2
+"Frontend Developer React JS","Backend Developer with no frontend experience.",1
+"Frontend Developer React JS","QA Tester with automation testing knowledge.",1
+"Frontend Developer React JS","Accountant with finance experience.",0
+"Frontend Developer React JS","Teacher with education background.",0
+
+"Data Engineer Python Spark","Data Engineer with 6 years of experience building ETL pipelines using Spark, Python, and AWS.",3
+"Data Engineer Python Spark","Big Data Engineer with Hadoop, Spark, and data pipeline experience.",3
+"Data Engineer Python Spark","Data Analyst with SQL and reporting experience only.",2
+"Data Engineer Python Spark","ETL Developer with limited big data tools exposure.",2
+"Data Engineer Python Spark","Python Developer with backend systems experience.",1
+"Data Engineer Python Spark","Software Developer without data engineering exposure.",1
+"Data Engineer Python Spark","Administrative Assistant with office experience.",0
+"Data Engineer Python Spark","Retail employee with sales background.",0

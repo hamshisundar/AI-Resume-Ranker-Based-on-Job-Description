@@ -1,19 +1,40 @@
 import axios from "axios";
 
+const TOKEN_KEY = "cvfilter_access_token";
+
+export function getAccessToken() {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+export function setAccessToken(token) {
+  if (token) localStorage.setItem(TOKEN_KEY, token);
+  else localStorage.removeItem(TOKEN_KEY);
+}
+
+/** Best-effort message for FastAPI `{ detail }` or `{ error }` bodies. */
+export function apiErrorMessage(error) {
+  const d = error?.response?.data;
+  if (!d) return error?.message || "Request failed";
+  if (typeof d.error === "string") return d.error;
+  if (typeof d.detail === "string") return d.detail;
+  if (Array.isArray(d.detail)) {
+    const first = d.detail[0];
+    if (first?.msg) return String(first.msg);
+  }
+  if (d.detail && typeof d.detail === "object" && typeof d.detail.error === "string") {
+    return d.detail.error;
+  }
+  return error?.message || "Request failed";
+}
+
 function resolveApiBaseUrl() {
   if (import.meta.env.DEV) {
     return "/api";
   }
-  return import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:5050";
+  return import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 }
 
 const API_BASE_URL = resolveApiBaseUrl();
-
-let csrfTokenRef = { current: null };
-
-export function setCsrfTokenRef(ref) {
-  csrfTokenRef = ref;
-}
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -25,20 +46,14 @@ const apiClient = axios.create({
 });
 
 apiClient.interceptors.request.use((config) => {
-  const method = (config.method || "get").toLowerCase();
-  if (method !== "get" && method !== "head") {
-    const token = csrfTokenRef?.current;
-    if (token) {
-      config.headers["X-CSRF-Token"] = token;
-    }
+  const t = getAccessToken();
+  if (t) {
+    config.headers.Authorization = `Bearer ${t}`;
   }
   return config;
 });
 
-export const fetchCsrfToken = async () => {
-  const response = await apiClient.get("/auth/csrf");
-  return response.data.csrf_token;
-};
+export const fetchCsrfToken = async () => "";
 
 export const checkHealth = async () => {
   const response = await apiClient.get("/health");
@@ -91,6 +106,16 @@ export const getRankingHistory = async (id) => {
 
 export const deleteRankingHistory = async (id) => {
   const response = await apiClient.delete(`/history/${id}`);
+  return response.data;
+};
+
+export const listJobs = async () => {
+  const response = await apiClient.get("/jobs");
+  return response.data;
+};
+
+export const getJob = async (id) => {
+  const response = await apiClient.get(`/jobs/${id}`);
   return response.data;
 };
 

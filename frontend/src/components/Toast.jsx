@@ -1,8 +1,8 @@
-import React, { useEffect } from 'react';
-import { X, CheckCircle, AlertCircle, Info } from 'lucide-react';
-import { cn } from '../lib/utils';
+import React, { useEffect } from "react";
+import { X, CheckCircle, AlertCircle, Info } from "lucide-react";
+import { cn } from "../lib/utils";
 
-const Toast = ({ message, type = 'info', onClose, duration = 3000 }) => {
+const Toast = ({ message, type = "info", onClose, duration = 3000 }) => {
   useEffect(() => {
     if (duration) {
       const timer = setTimeout(() => {
@@ -13,34 +13,35 @@ const Toast = ({ message, type = 'info', onClose, duration = 3000 }) => {
   }, [duration, onClose]);
 
   const icons = {
-    success: <CheckCircle className="w-5 h-5 text-green-500" />,
-    error: <AlertCircle className="w-5 h-5 text-red-500" />,
-    info: <Info className="w-5 h-5 text-blue-500" />,
+    success: <CheckCircle className="w-5 h-5 text-emerald-600" aria-hidden />,
+    error: <AlertCircle className="w-5 h-5 text-red-600" aria-hidden />,
+    info: <Info className="w-5 h-5 text-slate-500" aria-hidden />,
   };
 
   const styles = {
-    success: "bg-green-50 border-green-200 text-green-800",
-    error: "bg-red-50 border-red-200 text-red-800",
-    info: "bg-blue-50 border-blue-200 text-blue-800",
+    success: "bg-emerald-50 border-emerald-200 text-slate-800",
+    error: "bg-red-50 border-red-200 text-red-900",
+    info: "bg-white border-slate-200 text-slate-700",
   };
 
   return (
-    <div className={cn(
-      "flex items-center w-full max-w-xs p-4 mb-4 text-gray-500 bg-white rounded-lg shadow dark:text-gray-400 dark:bg-gray-800 border",
-      styles[type]
-    )} role="alert">
-      <div className="inline-flex items-center justify-center flex-shrink-0 w-8 h-8 rounded-lg">
-        {icons[type]}
-      </div>
-      <div className="ml-3 text-sm font-normal break-words flex-1">{message}</div>
-      <button 
-        type="button" 
-        className="ml-auto -mx-1.5 -my-1.5 bg-transparent text-gray-400 hover:text-gray-900 rounded-lg focus:ring-2 focus:ring-gray-300 p-1.5 hover:bg-gray-100 inline-flex h-8 w-8 dark:text-gray-500 dark:hover:text-white dark:bg-gray-800 dark:hover:bg-gray-700" 
+    <div
+      className={cn(
+        "flex items-center w-full max-w-sm p-3 mb-3 text-sm bg-white rounded-md border shadow-md shadow-slate-900/5",
+        styles[type],
+      )}
+      role="alert"
+    >
+      <div className="inline-flex items-center justify-center shrink-0 w-8 h-8">{icons[type]}</div>
+      <div className="ml-2.5 break-words flex-1 leading-snug">{message}</div>
+      <button
+        type="button"
+        className="ml-2 shrink-0 text-slate-400 hover:text-slate-800 rounded p-1.5 hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
         aria-label="Close"
         onClick={onClose}
       >
         <span className="sr-only">Close</span>
-        <X className="w-4 h-4" />
+        <X className="w-4 h-4" aria-hidden />
       </button>
     </div>
   );
@@ -48,13 +49,9 @@ const Toast = ({ message, type = 'info', onClose, duration = 3000 }) => {
 
 export const ToastContainer = ({ toasts, removeToast }) => {
   return (
-    <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
+    <div className="fixed bottom-4 right-4 z-50 flex flex-col">
       {toasts.map((toast) => (
-        <Toast
-          key={toast.id}
-          {...toast}
-          onClose={() => removeToast(toast.id)}
-        />
+        <Toast key={toast.id} {...toast} onClose={() => removeToast(toast.id)} />
       ))}
     </div>
   );

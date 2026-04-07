@@ -9,5 +9,5 @@ body,
 }
 
 body {
-  @apply bg-gray-50 text-gray-900 font-sans antialiased;
+  @apply min-h-full bg-slate-100 text-slate-900 font-sans antialiased;
 }
